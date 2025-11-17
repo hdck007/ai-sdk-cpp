@@ -28,7 +28,7 @@ else()
   message(STATUS "ai::sdk or ai::ai-sdk-cpp target not found. Please set AI_SDK_TARGET to your SDK target name.")
 endif()
 
-set(SOURCE_FILES pg_gen_query.cpp)
+set(SOURCE_FILES pg_gen_query.cpp pg_gen_query_utils.cpp)
 
 add_library(pg_gen_query SHARED ${SOURCE_FILES})
 target_include_directories(pg_gen_query PRIVATE ${PostgreSQL_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/../../include ${CMAKE_SOURCE_DIR}/src)
