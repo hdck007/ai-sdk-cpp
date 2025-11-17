@@ -138,6 +138,7 @@ Datum pg_gen_query(PG_FUNCTION_ARGS) {
     ereport(ERROR, (errmsg("pg_gen_query: SPI_connect failed")));
     PG_RETURN_NULL();
   }
+  ereport(LOG, (errmsg("pg_gen_query: executing SQL: %s", sql_to_execute.c_str())));
   int rc = SPI_execute(sql_to_execute.c_str(), true, 0);
   if (rc != SPI_OK_SELECT && rc != SPI_OK_SELINTO) {
     SPI_finish();
