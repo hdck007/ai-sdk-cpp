@@ -144,68 +144,8 @@ Datum pg_gen_query(PG_FUNCTION_ARGS) {
     ereport(ERROR, (errmsg("pg_gen_query: SQL execution failed (rc=%d)", rc)));
     PG_RETURN_NULL();
   }
-  std::ostringstream outbuf;
-  if (SPI_processed > 0 && SPI_tuptable) {
-    TupleDesc tup = SPI_tuptable->tupdesc;
-    SPITupleTable *tuptable = SPI_tuptable;
-    int ncols = tup->natts;
-    std::vector<std::string> headers;
-    headers.reserve(ncols);
-    for (int col = 1; col <= ncols; ++col) {
-      headers.emplace_back(NameStr(tup->attrs[col-1].attname));
-    }
-
-    std::vector<std::vector<std::string>> rows;
-    rows.reserve(SPI_processed);
-    for (uint64_t i = 0; i < (uint64_t)SPI_processed; ++i) {
-      HeapTuple ht = tuptable->vals[i];
-      std::vector<std::string> row;
-      row.reserve(ncols);
-      for (int col = 1; col <= ncols; ++col) {
-        char *val = SPI_getvalue(ht, tup, col);
-        row.emplace_back(val ? val : "\\N");
-      }
-      rows.emplace_back(std::move(row));
-    }
-
-    std::vector<size_t> widths(ncols, 0);
-    for (int j = 0; j < ncols; ++j) widths[j] = headers[j].size();
-    for (const auto &r : rows) {
-      for (int j = 0; j < ncols; ++j) {
-        if (r[j].size() > widths[j]) widths[j] = r[j].size();
-      }
-    }
-
-    auto pad_right = [](const std::string &s, size_t width) {
-      if (s.size() >= width) return s;
-      return s + std::string(width - s.size(), ' ');
-    };
-
-    // Header
-    for (int j = 0; j < ncols; ++j) {
-      if (j > 0) outbuf << " | ";
-      outbuf << pad_right(headers[j], widths[j]);
-    }
-    outbuf << '\n';
-
-    // Separator
-    for (int j = 0; j < ncols; ++j) {
-      if (j > 0) outbuf << "-+-";
-      outbuf << std::string(widths[j], '-');
-    }
-    outbuf << '\n';
-
-    // Rows
-    for (const auto &r : rows) {
-      for (int j = 0; j < ncols; ++j) {
-        if (j > 0) outbuf << " | ";
-        outbuf << pad_right(r[j], widths[j]);
-      }
-      outbuf << '\n';
-    }
-  }
+  std::string final_out = pg_gen_query_format_spi_results();
   SPI_finish();
-  std::string final_out = outbuf.str();
   text* out = cstring_to_text(final_out.c_str());
   PG_RETURN_POINTER(out);
 }

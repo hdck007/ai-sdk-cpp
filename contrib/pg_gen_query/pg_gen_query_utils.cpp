@@ -78,3 +78,64 @@ std::string pg_gen_query_escape_literal(const std::string &in) {
   }
   return out;
 }
+
+std::string pg_gen_query_format_spi_results() {
+  std::ostringstream outbuf;
+  if (SPI_processed > 0 && SPI_tuptable) {
+    TupleDesc tup = SPI_tuptable->tupdesc;
+    SPITupleTable *tuptable = SPI_tuptable;
+    int ncols = tup->natts;
+    std::vector<std::string> headers;
+    headers.reserve(ncols);
+    for (int col = 1; col <= ncols; ++col) {
+      headers.emplace_back(NameStr(tup->attrs[col-1].attname));
+    }
+
+    std::vector<std::vector<std::string>> rows;
+    rows.reserve(SPI_processed);
+    for (uint64_t i = 0; i < (uint64_t)SPI_processed; ++i) {
+      HeapTuple ht = tuptable->vals[i];
+      std::vector<std::string> row;
+      row.reserve(ncols);
+      for (int col = 1; col <= ncols; ++col) {
+        char *val = SPI_getvalue(ht, tup, col);
+        row.emplace_back(val ? val : "\\N");
+      }
+      rows.emplace_back(std::move(row));
+    }
+
+    std::vector<size_t> widths(ncols, 0);
+    for (int j = 0; j < ncols; ++j) widths[j] = headers[j].size();
+    for (const auto &r : rows) {
+      for (int j = 0; j < ncols; ++j) {
+        if (r[j].size() > widths[j]) widths[j] = r[j].size();
+      }
+    }
+
+    auto pad_right = [](const std::string &s, size_t width) {
+      if (s.size() >= width) return s;
+      return s + std::string(width - s.size(), ' ');
+    };
+
+    for (int j = 0; j < ncols; ++j) {
+      if (j > 0) outbuf << " | ";
+      outbuf << pad_right(headers[j], widths[j]);
+    }
+    outbuf << '\n';
+
+    for (int j = 0; j < ncols; ++j) {
+      if (j > 0) outbuf << "-+-";
+      outbuf << std::string(widths[j], '-');
+    }
+    outbuf << '\n';
+
+    for (const auto &r : rows) {
+      for (int j = 0; j < ncols; ++j) {
+        if (j > 0) outbuf << " | ";
+        outbuf << pad_right(r[j], widths[j]);
+      }
+      outbuf << '\n';
+    }
+  }
+  return outbuf.str();
+}
